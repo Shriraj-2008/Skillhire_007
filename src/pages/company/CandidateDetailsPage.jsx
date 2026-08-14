@@ -8,26 +8,40 @@ export default function CandidateDetailsPage({ candidateEmail: propEmail }) {
 
   // Dynamic Candidate Data & Assessment Result Fetcher
   const loadDynamicCandidateData = useCallback(() => {
-    // 1. Fetch Candidate Profile & Local Data
+    // 1. Fetch Job Applications
+    const applications = JSON.parse(localStorage.getItem('job_applications')) || [];
+    
+    // 2. Fetch Candidate Profile & Local Data
     const candidateProfile = JSON.parse(localStorage.getItem('candidate_profile')) || {};
     const registeredUser = JSON.parse(localStorage.getItem('user')) || {};
     const quizSummary = JSON.parse(localStorage.getItem('candidate_quiz_results')) || {};
     const latestTestResult = JSON.parse(localStorage.getItem('candidate_latest_skill_test_result')) || null;
 
-    // 2. Fetch Job Applications
-    const applications = JSON.parse(localStorage.getItem('job_applications')) || [];
     const targetEmail = propEmail || candidateProfile.email || registeredUser.email || '';
 
-    // Find specific application or default to latest submitted
-    const candidateApp = applications.find(app => app.candidateEmail === targetEmail) || applications[applications.length - 1];
+    // 3. Find specific application from localStorage
+    let candidateApp = null;
+    
+    if (propEmail) {
+      // Direct match when email prop is provided
+      candidateApp = applications.find(app => app.candidateEmail === propEmail);
+    } else if (targetEmail) {
+      candidateApp = applications.find(app => app.candidateEmail === targetEmail);
+    }
 
-    if (!targetEmail && !candidateApp) {
+    // Fallback only if no specific email provided
+    if (!candidateApp && !propEmail && applications.length > 0) {
+      candidateApp = applications[applications.length - 1];
+    }
+
+    // 4. If application is deleted from manage jobs OR target candidate not found -> Reset view
+    if (!candidateApp) {
       setCandidateData(null);
       setTestResult(null);
       return;
     }
 
-    // 3. Construct Candidate Details Object
+    // 5. Construct Candidate Details Object
     const constructedCandidate = {
       fullName: candidateApp?.candidateName || candidateProfile.fullName || registeredUser.fullName || 'Candidate',
       email: candidateApp?.candidateEmail || candidateProfile.email || registeredUser.email || 'N/A',
@@ -41,7 +55,7 @@ export default function CandidateDetailsPage({ candidateEmail: propEmail }) {
 
     setCandidateData(constructedCandidate);
 
-    // 4. Construct Dynamic Skill Assessment Results
+    // 6. Construct Dynamic Skill Assessment Results
     if (latestTestResult) {
       setTestResult(latestTestResult);
     } else if (quizSummary.score !== undefined) {
@@ -67,23 +81,25 @@ export default function CandidateDetailsPage({ candidateEmail: propEmail }) {
   useEffect(() => {
     loadDynamicCandidateData();
 
-    // Listen to real-time events across windows & tabs
+    // Listen to real-time sync events across tabs & components
     window.addEventListener('storage', loadDynamicCandidateData);
     window.addEventListener('applicationsUpdated', loadDynamicCandidateData);
+    window.addEventListener('jobApplicationsUpdated', loadDynamicCandidateData);
 
     return () => {
       window.removeEventListener('storage', loadDynamicCandidateData);
       window.removeEventListener('applicationsUpdated', loadDynamicCandidateData);
+      window.removeEventListener('jobApplicationsUpdated', loadDynamicCandidateData);
     };
   }, [loadDynamicCandidateData]);
 
   if (!candidateData) {
     return (
-      <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center max-w-xl mx-auto my-12 text-slate-500">
+      <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center max-w-xl mx-auto my-12 text-slate-500 shadow-sm">
         <User size={48} className="mx-auto text-slate-300 mb-3" />
         <h3 className="text-base font-bold text-slate-800">No Candidate Application Found</h3>
         <p className="text-xs text-slate-400 mt-1">
-          When a candidate applies for a job, their profile and assessment results will appear here.
+          This candidate application has been deleted or does not exist.
         </p>
       </div>
     );

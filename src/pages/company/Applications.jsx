@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Users, UserPlus, UserCheck, Calendar, Gift, 
-  Search, Download, Settings, MoreVertical, Eye, Filter 
+  Search, Download, Settings, MoreVertical, Eye, Filter,
+  X, Mail, Phone, MapPin, Briefcase, FileText, ExternalLink, CheckCircle2, Clock, Trash2
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -14,20 +15,35 @@ export default function Applications() {
   const [selectedStatus, setSelectedStatus] = useState('All Status');
   const [selectedSource, setSelectedSource] = useState('All Sources');
   const [activeMenuId, setActiveMenuId] = useState(null);
+  
+  // State for Candidate Detail Modal
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
 
-  // Dynamic Data Load via LocalStorage (Matching key: 'job_applications')
+  // Dynamic Data Load & Clean-up (Syncing with Manage Jobs & Applications local storage)
   const loadApplications = useCallback(() => {
     try {
       const storedApps = JSON.parse(localStorage.getItem('job_applications')) || [];
+      const storedJobs = JSON.parse(localStorage.getItem('posted_jobs')) || [];
       const storedCompany = JSON.parse(localStorage.getItem('company')) || {};
       const currentCompanyEmail = companyUser?.email || storedCompany?.email;
 
-      // Filter applications relevant to the logged-in company (if companyEmail present)
-      const filteredForCompany = currentCompanyEmail
-        ? storedApps.filter(app => !app.companyEmail || app.companyEmail === currentCompanyEmail)
-        : storedApps;
+      // Extract existing valid Job IDs (or Titles if IDs aren't present)
+      const validJobIds = new Set(storedJobs.map(job => String(job.id)));
 
-      setApplications(filteredForCompany);
+      // 1. Filter out applications whose jobs no longer exist in 'posted_jobs' (if jobs stored with IDs)
+      let syncedApps = storedApps.filter(app => {
+        if (app.jobId && validJobIds.size > 0) {
+          return validJobIds.has(String(app.jobId));
+        }
+        return true;
+      });
+
+      // 2. Filter applications relevant to the current logged-in company
+      if (currentCompanyEmail) {
+        syncedApps = syncedApps.filter(app => !app.companyEmail || app.companyEmail === currentCompanyEmail);
+      }
+
+      setApplications(syncedApps);
     } catch (e) {
       setApplications([]);
     }
@@ -35,11 +51,18 @@ export default function Applications() {
 
   useEffect(() => {
     loadApplications();
-    window.addEventListener('storage', loadApplications);
-    window.addEventListener('applicationsUpdated', loadApplications);
+
+    // Custom & native events for real-time synchronization
+    const handleSync = () => loadApplications();
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('applicationsUpdated', handleSync);
+    window.addEventListener('jobsUpdated', handleSync); // Listen when jobs are deleted/updated
+
     return () => {
-      window.removeEventListener('storage', loadApplications);
-      window.removeEventListener('applicationsUpdated', loadApplications);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('applicationsUpdated', handleSync);
+      window.removeEventListener('jobsUpdated', handleSync);
     };
   }, [loadApplications]);
 
@@ -52,8 +75,36 @@ export default function Applications() {
     
     // Update local state
     setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: newStatus } : a));
+    
+    // Update selected candidate if modal is open
+    if (selectedCandidate && selectedCandidate.id === appId) {
+      setSelectedCandidate(prev => ({ ...prev, status: newStatus }));
+    }
+
     setActiveMenuId(null);
-    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('applicationsUpdated'));
+  };
+
+  // Delete Application Function
+  const handleDeleteApplication = (appId) => {
+    if (window.confirm("Kya aap sach me is application ko delete karna chahte hain?")) {
+      const allStoredApps = JSON.parse(localStorage.getItem('job_applications')) || [];
+      const updatedGlobal = allStoredApps.filter(a => a.id !== appId);
+      
+      // LocalStorage update
+      localStorage.setItem('job_applications', JSON.stringify(updatedGlobal));
+      
+      // Update local state
+      setApplications(prev => prev.filter(a => a.id !== appId));
+      
+      // Close modal if deleted item is currently viewed
+      if (selectedCandidate && selectedCandidate.id === appId) {
+        setSelectedCandidate(null);
+      }
+
+      setActiveMenuId(null);
+      window.dispatchEvent(new Event('applicationsUpdated'));
+    }
   };
 
   // Dynamic Job Title Options for Filter Dropdown
@@ -194,7 +245,7 @@ export default function Applications() {
                   <select 
                     value={selectedJob}
                     onChange={(e) => setSelectedJob(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer"
                   >
                     {availableJobTitles.map(title => (
                       <option key={title} value={title}>{title}</option>
@@ -204,7 +255,7 @@ export default function Applications() {
                   <select 
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer"
                   >
                     <option value="All Status">All Status</option>
                     <option value="New">New / Applied</option>
@@ -218,7 +269,7 @@ export default function Applications() {
                   <select 
                     value={selectedSource}
                     onChange={(e) => setSelectedSource(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer"
                   >
                     <option value="All Sources">All Sources</option>
                     <option value="SkillHire Platform">SkillHire Platform</option>
@@ -298,20 +349,12 @@ export default function Applications() {
 
                             <td className="py-3 px-4 text-right relative">
                               <div className="flex items-center justify-end gap-2">
-                                {app.resumeUrl ? (
-                                  <a 
-                                    href={app.resumeUrl} 
-                                    target="_blank" 
-                                    rel="noreferrer"
-                                    className="border border-slate-200 text-indigo-600 hover:bg-indigo-50 font-semibold px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1"
-                                  >
-                                    <Eye size={12} /> Resume
-                                  </a>
-                                ) : (
-                                  <button className="border border-slate-200 text-slate-400 font-semibold px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1 cursor-not-allowed">
-                                    <Eye size={12} /> Details
-                                  </button>
-                                )}
+                                <button 
+                                  onClick={() => setSelectedCandidate(app)}
+                                  className="border border-slate-200 text-indigo-600 hover:bg-indigo-50 font-semibold px-2.5 py-1 rounded-lg text-[11px] flex items-center gap-1 shadow-sm transition"
+                                >
+                                  <Eye size={12} /> {app.resumeUrl ? 'Resume' : 'Details'}
+                                </button>
 
                                 <button 
                                   onClick={() => setActiveMenuId(activeMenuId === app.id ? null : app.id)}
@@ -321,30 +364,40 @@ export default function Applications() {
                                 </button>
 
                                 {activeMenuId === app.id && (
-                                  <div className="absolute right-4 top-10 w-40 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 text-left">
+                                  <div className="absolute right-4 top-10 w-44 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 text-left">
                                     <button 
                                       onClick={() => handleStatusChange(app.id, 'Shortlisted')}
-                                      className="w-full px-3 py-1.5 hover:bg-slate-50 text-emerald-600 font-semibold text-xs"
+                                      className="w-full px-3 py-1.5 hover:bg-slate-50 text-emerald-600 font-semibold text-xs text-left"
                                     >
                                       Move to Shortlisted
                                     </button>
                                     <button 
                                       onClick={() => handleStatusChange(app.id, 'Interview Scheduled')}
-                                      className="w-full px-3 py-1.5 hover:bg-slate-50 text-amber-600 font-semibold text-xs"
+                                      className="w-full px-3 py-1.5 hover:bg-slate-50 text-amber-600 font-semibold text-xs text-left"
                                     >
                                       Schedule Interview
                                     </button>
                                     <button 
                                       onClick={() => handleStatusChange(app.id, 'Offer Sent')}
-                                      className="w-full px-3 py-1.5 hover:bg-slate-50 text-purple-600 font-semibold text-xs"
+                                      className="w-full px-3 py-1.5 hover:bg-slate-50 text-purple-600 font-semibold text-xs text-left"
                                     >
                                       Send Offer
                                     </button>
                                     <button 
                                       onClick={() => handleStatusChange(app.id, 'Rejected')}
-                                      className="w-full px-3 py-1.5 hover:bg-rose-50 text-rose-600 font-semibold text-xs"
+                                      className="w-full px-3 py-1.5 hover:bg-slate-50 text-rose-600 font-semibold text-xs text-left"
                                     >
                                       Reject Application
+                                    </button>
+
+                                    <div className="border-t border-slate-100 my-1"></div>
+
+                                    {/* Delete Option Added */}
+                                    <button 
+                                      onClick={() => handleDeleteApplication(app.id)}
+                                      className="w-full px-3 py-1.5 hover:bg-rose-50 text-rose-600 font-bold text-xs flex items-center gap-1.5 text-left"
+                                    >
+                                      <Trash2 size={13} /> Delete Application
                                     </button>
                                   </div>
                                 )}
@@ -355,7 +408,7 @@ export default function Applications() {
                       ) : (
                         <tr>
                           <td colSpan={7} className="py-12 text-center text-slate-400">
-                            No candidate applications found yet.
+                            No candidate applications found matching your criteria.
                           </td>
                         </tr>
                       )}
@@ -429,6 +482,158 @@ export default function Applications() {
           </div>
         </main>
       </div>
+
+      {/* Candidate Details Modal */}
+      {selectedCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden border border-slate-100 animate-in fade-in duration-200">
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white font-bold text-lg flex items-center justify-center shadow-md">
+                  {selectedCandidate.candidateName ? selectedCandidate.candidateName.charAt(0).toUpperCase() : 'C'}
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">{selectedCandidate.candidateName || 'Candidate Profile'}</h2>
+                  <p className="text-xs text-indigo-600 font-semibold">Applying for: {selectedCandidate.jobTitle}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedCandidate(null)} 
+                className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+              
+              {/* Contact Information */}
+              <div>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Contact Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <Mail size={16} className="text-slate-400 shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-medium">Email Address</p>
+                      <p className="font-semibold text-slate-800">{selectedCandidate.candidateEmail || selectedCandidate.email || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <Phone size={16} className="text-slate-400 shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-medium">Phone Number</p>
+                      <p className="font-semibold text-slate-800">{selectedCandidate.phone || selectedCandidate.candidatePhone || 'Not Provided'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <MapPin size={16} className="text-slate-400 shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-medium">Location</p>
+                      <p className="font-semibold text-slate-800">{selectedCandidate.location || 'N/A'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-100">
+                    <Clock size={16} className="text-slate-400 shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-medium">Applied Date</p>
+                      <p className="font-semibold text-slate-800">{selectedCandidate.appliedAt || selectedCandidate.appliedDate || 'Recent'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Skills */}
+              {selectedCandidate.skills && selectedCandidate.skills.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Skills</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedCandidate.skills.map((skill, idx) => (
+                      <span key={idx} className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg font-bold text-[11px]">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Cover Letter / Bio */}
+              {selectedCandidate.coverLetter && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Cover Letter</h3>
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 text-slate-600 text-xs leading-relaxed whitespace-pre-line">
+                    {selectedCandidate.coverLetter}
+                  </div>
+                </div>
+              )}
+
+              {/* Resume Download / Link */}
+              <div>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Resume Document</h3>
+                {selectedCandidate.resumeUrl ? (
+                  <a 
+                    href={selectedCandidate.resumeUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="flex items-center justify-between p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 font-bold transition group"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FileText size={18} />
+                      <span>{selectedCandidate.resumeName || 'Candidate_Resume.pdf'}</span>
+                    </div>
+                    <ExternalLink size={16} className="group-hover:translate-x-0.5 transition-transform" />
+                  </a>
+                ) : (
+                  <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50 text-slate-400 italic">
+                    No resume document attached.
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Status Update */}
+              <div>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Update Application Status</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['Shortlisted', 'Interview Scheduled', 'Offer Sent', 'Rejected'].map((statusOption) => (
+                    <button
+                      key={statusOption}
+                      onClick={() => handleStatusChange(selectedCandidate.id, statusOption)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                        selectedCandidate.status === statusOption
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {selectedCandidate.status === statusOption && <CheckCircle2 size={12} />}
+                      {statusOption}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center">
+              <button 
+                onClick={() => handleDeleteApplication(selectedCandidate.id)}
+                className="bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 font-bold px-4 py-2 rounded-xl transition text-xs flex items-center gap-1.5"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+
+              <button 
+                onClick={() => setSelectedCandidate(null)}
+                className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-bold px-4 py-2 rounded-xl transition text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
