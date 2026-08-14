@@ -8,9 +8,9 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import CandidateLayout from './components/candidate/CandidateLayout';
-import CompanyLayout from './components/Company/CompanyLayout';
-import CompanySidebar from './components/Company/CompanySidebar';
-import CompanyNavbar from './components/Company/CompanyNavbar';
+import CompanyLayout from './components/company/CompanyLayout';
+import CompanySidebar from './components/company/CompanySidebar';
+import CompanyNavbar from './components/company/CompanyNavbar';
 
 // Public Pages
 import Home from './pages/public/Home';
@@ -50,12 +50,13 @@ import Settings from './pages/candidate/Settings';
 import ResumePreview from './pages/candidate/ResumePreview';
 import Notifications from './pages/candidate/Notifications';
 
+// Post Job Steps
 import PostJobPage from './pages/company/PostJobPage';
-import Step1JobDetails from './components/company/PostJob/Step1JobDetails';
-import Step2JobDescription from './components/company/PostJob/Step2JobDescription';
-import Step3Requirements from './components/company/PostJob/Step3Requirements';
-import Step4Compensation from './components/company/PostJob/Step4Compensation';
-import Step5PreviewPublish from './components/company/PostJob/Step5PreviewPublish';
+import Step1JobDetails from './components/company/PostJob/Step1JobDetails.jsx';
+import Step2JobDescription from './components/company/PostJob/Step2JobDescription.jsx';
+import Step3Requirements from './components/company/PostJob/Step3Requirements.jsx';
+import Step4Compensation from './components/company/PostJob/Step4Compensation.jsx';
+import Step5PreviewPublish from './components/company/PostJob/Step5PreviewPublish.jsx';
 import ManageJobs from './pages/company/ManageJobs';
 import CandidateSearchDashboard from './pages/company/CandidateSearchDashboard';
 import CandidateDetailsPage from './pages/company/CandidateDetailsPage';
